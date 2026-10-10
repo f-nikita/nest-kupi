@@ -7,12 +7,21 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { JwtAuthGuard } from 'src/auth/strategies/jwt-auth.guard';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
+
+interface AuthenticatedRequest extends Request {
+  user: {
+    userId: number;
+    username: string;
+  };
+}
 
 @Controller('users')
 export class UsersController {
@@ -26,6 +35,39 @@ export class UsersController {
   @Get()
   findAll() {
     return this.usersService.findAll();
+  }
+
+  @Get('/me')
+  @UseGuards(JwtAuthGuard)
+  findMe(@Req() req: AuthenticatedRequest) {
+    return this.usersService.findOne(req.user.userId);
+  }
+
+  @Patch('/me')
+  @UseGuards(JwtAuthGuard)
+  updateMe(
+    @Req() req: AuthenticatedRequest,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    return this.usersService.update(req.user.userId, updateUserDto);
+  }
+
+  @Get('/me/wishes')
+  @UseGuards(JwtAuthGuard)
+  findMyWishes(@Req() req: AuthenticatedRequest) {
+    return this.usersService.findMyWishes(req.user.userId);
+  }
+
+  @Get(':username')
+  @UseGuards(JwtAuthGuard)
+  findSomeUser(@Param('username') username: string) {
+    return this.usersService.findOneByUsername(username);
+  }
+
+  @Get(':username/wishes')
+  @UseGuards(JwtAuthGuard)
+  findOneWishesByUsername(@Param('username') username: string) {
+    return this.usersService.findOneWishesByUsername(username);
   }
 
   @Get(':id')

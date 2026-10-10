@@ -59,15 +59,67 @@ export class UsersService {
     return user;
   }
 
+  async findMyWishes(id: number) {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      relations: { wishes: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`Пользователь с id ${id} не найден`);
+    }
+
+    return user.wishes;
+  }
+
   async update(id: number, updateUserDto: UpdateUserDto) {
     await this.findOne(id);
 
-    await this.userRepository.update(id, updateUserDto);
+    const userData = { ...updateUserDto };
+
+    if (userData.password) {
+      userData.password = await bcrypt.hash(userData.password, 12);
+    }
+
+    await this.userRepository.update(id, userData);
+
     return this.findOne(id);
   }
 
   async remove(id: number) {
     await this.findOne(id);
     await this.userRepository.delete(id);
+  }
+
+  async findOneByUsername(usernamePerson: string) {
+    const user = await this.userRepository.findOne({
+      where: {
+        username: usernamePerson,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(
+        `Пользователь с username ${usernamePerson} не найден`,
+      );
+    }
+
+    return user;
+  }
+
+  async findOneWishesByUsername(usernamePerson: string) {
+    const user = await this.userRepository.findOne({
+      where: {
+        username: usernamePerson,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(
+        `Пользователь с username ${usernamePerson} не найден`,
+      );
+    }
+
+    return user.wishes;
   }
 }
