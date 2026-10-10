@@ -4,6 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import * as bcrypt from 'bcrypt';
+
 import { QueryFailedError, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -18,17 +20,28 @@ export class UsersService {
 
   async create(dto: CreateUserDto) {
     try {
-      const user = this.userRepository.create(dto);
-      return await this.userRepository.save(user);
+      const hashedPassword = await bcrypt.hash(dto.password, 12);
+
+      const user = this.userRepository.create({
+        ...dto,
+        password: hashedPassword,
+      });
+      const savedUser = await this.userRepository.save(user);
+
+      const { password: _password, ...result } = savedUser;
+
+      return result;
     } catch (error) {
       if (
         error instanceof QueryFailedError &&
         (error as { code?: string }).code === '23505'
       ) {
-        throw new ConflictException('Этот email уже занят');
+        throw new ConflictException(
+          'Пользователь с таким email или именем уже существует',
+        );
       }
 
-      throw error; // неизвестную ошибку отдаём NestJS
+      throw error;
     }
   }
 

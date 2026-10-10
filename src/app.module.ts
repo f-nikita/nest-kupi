@@ -11,6 +11,7 @@ import { Wish } from './wishes/entities/wish.entity';
 import { WishesModule } from './wishes/wishes.module';
 import { Wishlist } from './wishlists/entities/wishlist.entity';
 import { WishlistsModule } from './wishlists/wishlists.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { WishlistsModule } from './wishlists/wishlists.module';
     WishesModule,
     WishlistsModule,
     OffersModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
