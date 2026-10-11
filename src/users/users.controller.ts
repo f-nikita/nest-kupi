@@ -50,7 +50,11 @@ export class UsersController {
     @Req() req: AuthenticatedRequest,
     @Body() updateUserDto: UpdateUserDto,
   ) {
-    return this.usersService.update(req.user.userId, updateUserDto);
+    return this.usersService.update(
+      req.user.userId,
+      req.user.userId,
+      updateUserDto,
+    );
   }
 
   @Get('/me/wishes')
@@ -80,16 +84,20 @@ export class UsersController {
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
   update(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body() updateUserDto: UpdateUserDto,
   ) {
-    return this.usersService.update(id, updateUserDto);
+    return this.usersService.update(req.user.userId, id, updateUserDto);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.remove(id);
+  remove(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.usersService.remove(req.user.userId, id);
   }
 
   @Post('find')

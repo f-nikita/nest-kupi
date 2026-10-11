@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/users/entities/user.entity';
 import { Wish } from 'src/wishes/entities/wish.entity';
@@ -85,25 +89,53 @@ export class OffersService {
     return offer;
   }
 
-  async update(id: number, updateOfferDto: UpdateOfferDto) {
-    const wish = await this.offerRepository.findOneBy({ id });
+  async update(
+    currentUserId: number,
+    id: number,
+    updateOfferDto: UpdateOfferDto,
+  ) {
+    const offer = await this.findOwnedOffer(currentUserId, id);
 
-    if (!wish) {
-      throw new NotFoundException(`Подарок с id ${id} не найден`);
+    if (updateOfferDto.itemId !== undefined) {
+      const item = await this.wishRepository.findOneBy({
+        id: updateOfferDto.itemId,
+      });
+
+      if (!item) {
+        throw new NotFoundException(
+          `Подарок с id ${updateOfferDto.itemId} не найден`,
+        );
+      }
+
+      offer.item = item;
     }
 
-    await this.offerRepository.update(id, updateOfferDto);
+    offer.amount = updateOfferDto.amount ?? offer.amount;
+    offer.hidden = updateOfferDto.hidden ?? offer.hidden;
 
-    return this.findOne(id);
+    return this.offerRepository.save(offer);
   }
 
-  async remove(id: number) {
-    const offer = await this.offerRepository.findOneBy({ id });
+  async remove(currentUserId: number, id: number) {
+    const offer = await this.findOwnedOffer(currentUserId, id);
+
+    await this.offerRepository.remove(offer);
+  }
+
+  private async findOwnedOffer(currentUserId: number, offerId: number) {
+    const offer = await this.offerRepository.findOne({
+      where: { id: offerId },
+      relations: { user: true },
+    });
 
     if (!offer) {
-      throw new NotFoundException(`Подарок с id ${id} не найден`);
+      throw new NotFoundException(`Предложение с id ${offerId} не найдено`);
     }
 
-    await this.offerRepository.delete(id);
+    if (offer.user.id !== currentUserId) {
+      throw new ForbiddenException('Нельзя изменять чужое предложение');
+    }
+
+    return offer;
   }
 }

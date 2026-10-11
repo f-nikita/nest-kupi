@@ -1,6 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Offer } from 'src/offers/entities/offer.entity';
 import { User } from 'src/users/entities/user.entity';
 import { Wish } from 'src/wishes/entities/wish.entity';
 import { In, Repository } from 'typeorm';
@@ -16,9 +19,6 @@ export class WishlistsService {
 
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-
-    @InjectRepository(Offer)
-    private readonly offerRepository: Repository<Offer>,
 
     @InjectRepository(Wishlist)
     private readonly wishlistRepository: Repository<Wishlist>,
@@ -84,15 +84,12 @@ export class WishlistsService {
     return wishlist;
   }
 
-  async update(id: number, updateWishlistDto: UpdateWishlistDto) {
-    const wishlist = await this.wishlistRepository.findOne({
-      where: { id },
-      relations: { items: true },
-    });
-
-    if (!wishlist) {
-      throw new NotFoundException(`Wishlist с id ${id} не найден`);
-    }
+  async update(
+    currentUserId: number,
+    id: number,
+    updateWishlistDto: UpdateWishlistDto,
+  ) {
+    const wishlist = await this.findOwnedWishlist(currentUserId, id);
 
     if (updateWishlistDto.items !== undefined) {
       const items = await this.wishRepository.findBy({
@@ -116,13 +113,26 @@ export class WishlistsService {
     return this.findOne(id);
   }
 
-  async remove(id: number) {
-    const wishlist = await this.wishlistRepository.findOneBy({ id });
+  async remove(currentUserId: number, id: number) {
+    const wishlist = await this.findOwnedWishlist(currentUserId, id);
+
+    await this.wishlistRepository.remove(wishlist);
+  }
+
+  private async findOwnedWishlist(currentUserId: number, wishlistId: number) {
+    const wishlist = await this.wishlistRepository.findOne({
+      where: { id: wishlistId },
+      relations: { owner: true, items: true },
+    });
 
     if (!wishlist) {
-      throw new NotFoundException(`Wishlist с id ${id} не найден`);
+      throw new NotFoundException(`Wishlist с id ${wishlistId} не найден`);
     }
 
-    await this.wishlistRepository.delete(id);
+    if (wishlist.owner.id !== currentUserId) {
+      throw new ForbiddenException('Нельзя изменять чужой вишлист');
+    }
+
+    return wishlist;
   }
 }

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/users/entities/user.entity';
 import { Repository } from 'typeorm';
@@ -77,26 +81,38 @@ export class WishesService {
     return wish;
   }
 
-  async update(id: number, updateWishDto: UpdateWishDto) {
-    const wish = await this.wishRepository.findOneBy({ id });
+  async update(
+    currentUserId: number,
+    id: number,
+    updateWishDto: UpdateWishDto,
+  ) {
+    const wish = await this.findOwnedWish(currentUserId, id);
 
-    if (!wish) {
-      throw new NotFoundException(`Подарок с id ${id} не найден`);
-    }
-
-    await this.wishRepository.update(id, updateWishDto);
-
-    return this.findOne(id);
+    Object.assign(wish, updateWishDto);
+    return this.wishRepository.save(wish);
   }
 
-  async remove(id: number) {
-    const wish = await this.wishRepository.findOneBy({ id });
+  async remove(currentUserId: number, id: number) {
+    const wish = await this.findOwnedWish(currentUserId, id);
+
+    await this.wishRepository.remove(wish);
+  }
+
+  private async findOwnedWish(currentUserId: number, wishId: number) {
+    const wish = await this.wishRepository.findOne({
+      where: { id: wishId },
+      relations: { owner: true },
+    });
 
     if (!wish) {
-      throw new NotFoundException(`Подарок с id ${id} не найден`);
+      throw new NotFoundException(`Подарок с id ${wishId} не найден`);
     }
 
-    await this.wishRepository.delete(id);
+    if (wish.owner.id !== currentUserId) {
+      throw new ForbiddenException('Нельзя изменять чужой подарок');
+    }
+
+    return wish;
   }
 
   async copy(userId: number, wishId: number) {

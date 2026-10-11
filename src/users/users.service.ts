@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -73,8 +74,12 @@ export class UsersService {
     return user.wishes;
   }
 
-  async update(id: number, updateUserDto: UpdateUserDto) {
-    await this.findOne(id);
+  async update(
+    currentUserId: number,
+    id: number,
+    updateUserDto: UpdateUserDto,
+  ) {
+    const user = await this.findOwnedUser(currentUserId, id);
 
     const userData = { ...updateUserDto };
 
@@ -82,14 +87,15 @@ export class UsersService {
       userData.password = await bcrypt.hash(userData.password, 12);
     }
 
-    await this.userRepository.update(id, userData);
+    Object.assign(user, userData);
+    await this.userRepository.save(user);
 
     return this.findOne(id);
   }
 
-  async remove(id: number) {
-    await this.findOne(id);
-    await this.userRepository.delete(id);
+  async remove(currentUserId: number, id: number) {
+    const user = await this.findOwnedUser(currentUserId, id);
+    await this.userRepository.remove(user);
   }
 
   async findOneByUsername(usernamePerson: string) {
@@ -136,5 +142,15 @@ export class UsersService {
         },
       ],
     });
+  }
+
+  private async findOwnedUser(currentUserId: number, userId: number) {
+    const user = await this.findOne(userId);
+
+    if (user.id !== currentUserId) {
+      throw new ForbiddenException('Нельзя изменять чужой профиль');
+    }
+
+    return user;
   }
 }

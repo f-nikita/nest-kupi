@@ -50,15 +50,19 @@ export class WishlistsController {
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
   update(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body() updateWishlistDto: UpdateWishlistDto,
   ) {
-    return this.wishlistsService.update(id, updateWishlistDto);
+    return this.wishlistsService.update(req.user.userId, id, updateWishlistDto);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.wishlistsService.remove(id);
+  remove(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.wishlistsService.remove(req.user.userId, id);
   }
 }

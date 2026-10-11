@@ -47,15 +47,21 @@ export class OffersController {
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard)
   update(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body() updateOfferDto: UpdateOfferDto,
   ) {
-    return this.offersService.update(id, updateOfferDto);
+    return this.offersService.update(req.user.userId, id, updateOfferDto);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.offersService.remove(id);
+  @UseGuards(JwtAuthGuard)
+  remove(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.offersService.remove(req.user.userId, id);
   }
 }
