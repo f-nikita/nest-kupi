@@ -79,6 +79,12 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^src/auth/strategies/jwt-auth.guard$": "<rootDir>/test/mocks/jwt-auth.guard.ts",
+      "^@nestjs/mapped-types$": "<rootDir>/test/mocks/nestjs-mapped-types.ts",
+      "^src/(.*)$": "<rootDir>/$1",
+      "^@nestjs/typeorm$": "<rootDir>/test/mocks/nestjs-typeorm.ts"
+    }
   }
 }

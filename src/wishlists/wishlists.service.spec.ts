@@ -1,18 +1,53 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import type { Repository } from 'typeorm';
+import { User } from '../users/entities/user.entity';
+import { Wish } from '../wishes/entities/wish.entity';
+import { Wishlist } from './entities/wishlist.entity';
 import { WishlistsService } from './wishlists.service';
 
 describe('WishlistsService', () => {
   let service: WishlistsService;
+  let wishlistRepository: {
+    findOne: ReturnType<typeof jest.fn>;
+    remove: ReturnType<typeof jest.fn>;
+  };
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [WishlistsService],
-    }).compile();
-
-    service = module.get<WishlistsService>(WishlistsService);
+  beforeEach(() => {
+    wishlistRepository = {
+      findOne: jest.fn(),
+      remove: jest.fn(),
+    };
+    service = new WishlistsService(
+      {} as Repository<Wish>,
+      {} as Repository<User>,
+      wishlistRepository as unknown as Repository<Wishlist>,
+    );
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  it('rejects an update of another user wishlist', async () => {
+    wishlistRepository.findOne.mockResolvedValue({
+      id: 1,
+      owner: { id: 1 },
+      items: [],
+    });
+
+    await expect(service.update(2, 1, {})).rejects.toThrow(ForbiddenException);
+  });
+
+  it('returns not found when the wishlist does not exist', async () => {
+    wishlistRepository.findOne.mockResolvedValue(null);
+
+    await expect(service.update(1, 1, {})).rejects.toThrow(NotFoundException);
+  });
+
+  it('rejects removal of another user wishlist', async () => {
+    wishlistRepository.findOne.mockResolvedValue({
+      id: 1,
+      owner: { id: 1 },
+      items: [],
+    });
+
+    await expect(service.remove(2, 1)).rejects.toThrow(ForbiddenException);
   });
 });
