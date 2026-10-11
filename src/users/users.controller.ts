@@ -75,12 +75,6 @@ export class UsersController {
     return this.usersService.findOneWishesByUsername(username);
   }
 
-  @Get(':id')
-  @UseGuards(JwtAuthGuard)
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.findOne(id);
-  }
-
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
   update(
