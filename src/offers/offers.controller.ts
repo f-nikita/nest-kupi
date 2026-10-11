@@ -4,39 +4,58 @@ import {
   Delete,
   Get,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from 'src/auth/strategies/jwt-auth.guard';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
 import { OffersService } from './offers.service';
+
+interface AuthenticatedRequest extends Request {
+  user: {
+    userId: number;
+    username: string;
+  };
+}
 
 @Controller('offers')
 export class OffersController {
   constructor(private readonly offersService: OffersService) {}
 
   @Post()
-  create(@Body() createOfferDto: CreateOfferDto) {
-    return this.offersService.create(createOfferDto);
+  @UseGuards(JwtAuthGuard)
+  create(
+    @Req() req: AuthenticatedRequest,
+    @Body() createOfferDto: CreateOfferDto,
+  ) {
+    return this.offersService.create(req.user.userId, createOfferDto);
   }
 
   @Get()
-  findAll() {
-    return this.offersService.findAll();
+  @UseGuards(JwtAuthGuard)
+  findAll(@Req() req: AuthenticatedRequest) {
+    return this.offersService.findAll(req.user.userId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.offersService.findOne(+id);
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.offersService.findOne(id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateOfferDto: UpdateOfferDto) {
-    return this.offersService.update(+id, updateOfferDto);
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateOfferDto: UpdateOfferDto,
+  ) {
+    return this.offersService.update(id, updateOfferDto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.offersService.remove(+id);
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.offersService.remove(id);
   }
 }

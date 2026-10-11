@@ -113,6 +113,7 @@ export class UsersService {
       where: {
         username: usernamePerson,
       },
+      relations: { wishes: true },
     });
 
     if (!user) {
