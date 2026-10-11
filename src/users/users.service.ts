@@ -6,8 +6,9 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 
-import { QueryFailedError, Repository } from 'typeorm';
+import { ILike, QueryFailedError, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
+import { QueryPost } from './dto/serach-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
 
@@ -121,5 +122,18 @@ export class UsersService {
     }
 
     return user.wishes;
+  }
+
+  async findByQuery({ query }: QueryPost) {
+    return this.userRepository.find({
+      where: [
+        {
+          username: ILike(`%${query}%`),
+        },
+        {
+          email: ILike(`%${query}%`),
+        },
+      ],
+    });
   }
 }

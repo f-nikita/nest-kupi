@@ -13,6 +13,7 @@ import {
 import { Request } from 'express';
 import { JwtAuthGuard } from 'src/auth/strategies/jwt-auth.guard';
 import { CreateUserDto } from './dto/create-user.dto';
+import { QueryPost } from './dto/serach-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
@@ -89,5 +90,11 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.remove(id);
+  }
+
+  @Post('find')
+  @UseGuards(JwtAuthGuard)
+  findByQuery(@Body() queryDto: QueryPost) {
+    return this.usersService.findByQuery(queryDto);
   }
 }
