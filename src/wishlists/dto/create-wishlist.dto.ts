@@ -1,14 +1,13 @@
-import { Type } from 'class-transformer';
 import {
+  ArrayUnique,
   IsArray,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUrl,
   Length,
-  ValidateNested,
 } from 'class-validator';
-import { Wish } from 'src/wishes/entities/wish.entity';
 
 export class CreateWishlistDto {
   @IsNotEmpty({ message: 'Название списка не может быть пустым' })
@@ -27,9 +26,9 @@ export class CreateWishlistDto {
   @IsUrl({}, { message: 'Обложка должна быть валидной ссылкой URL' })
   image?: string;
 
-  @IsArray()
   @IsOptional()
-  @ValidateNested({ each: true })
-  @Type(() => Wish)
-  items?: Wish[];
+  @IsArray()
+  @ArrayUnique()
+  @IsInt({ each: true })
+  items?: number[];
 }
