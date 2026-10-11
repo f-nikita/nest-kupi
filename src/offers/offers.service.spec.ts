@@ -8,19 +8,48 @@ import { OffersService } from './offers.service';
 
 describe('OffersService', () => {
   let service: OffersService;
+  let wishRepository: Record<string, ReturnType<typeof jest.fn>>;
+  let userRepository: Record<string, ReturnType<typeof jest.fn>>;
   let offerRepository: {
     findOne: ReturnType<typeof jest.fn>;
     remove: ReturnType<typeof jest.fn>;
+    create: ReturnType<typeof jest.fn>;
+    save: ReturnType<typeof jest.fn>;
+    manager?: unknown;
   };
 
   beforeEach(() => {
+    wishRepository = {
+      findOneBy: jest.fn(),
+      save: jest.fn(),
+    };
+    userRepository = {
+      findOneBy: jest.fn(),
+    };
     offerRepository = {
       findOne: jest.fn(),
       remove: jest.fn(),
+      create: jest.fn((data: unknown) => data),
+      save: jest.fn(),
     };
+
+    const transactionManager = {
+      getRepository: (entity: typeof Wish | typeof User | typeof Offer) => {
+        if (entity === Wish) return wishRepository;
+        if (entity === User) return userRepository;
+        return offerRepository;
+      },
+    };
+    offerRepository.manager = {
+      ...transactionManager,
+      transaction: async <T>(
+        callback: (manager: typeof transactionManager) => Promise<T>,
+      ) => callback(transactionManager),
+    };
+
     service = new OffersService(
-      {} as Repository<Wish>,
-      {} as Repository<User>,
+      wishRepository as unknown as Repository<Wish>,
+      userRepository as unknown as Repository<User>,
       offerRepository as unknown as Repository<Offer>,
     );
   });
@@ -29,6 +58,7 @@ describe('OffersService', () => {
     offerRepository.findOne.mockResolvedValue({
       id: 1,
       user: { id: 1 },
+      item: { id: 1, raised: 0 },
     });
 
     await expect(service.update(2, 1, {})).rejects.toThrow(ForbiddenException);
@@ -41,8 +71,38 @@ describe('OffersService', () => {
   });
 
   it('rejects removal of another user offer', async () => {
-    offerRepository.findOne.mockResolvedValue({ id: 1, user: { id: 1 } });
+    offerRepository.findOne.mockResolvedValue({
+      id: 1,
+      user: { id: 1 },
+      item: { id: 1, raised: 0 },
+    });
 
     await expect(service.remove(2, 1)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('adds an offer amount to the wish raised total', async () => {
+    const wish = { id: 1, raised: 10 };
+    wishRepository.findOneBy.mockResolvedValue(wish);
+    userRepository.findOneBy.mockResolvedValue({ id: 2 });
+    offerRepository.save.mockResolvedValue({
+      id: 3,
+    });
+
+    await service.create(2, { itemId: 1, amount: 15, hidden: false });
+
+    expect(wish.raised).toBe(25);
+    expect(wishRepository.save).toHaveBeenCalledWith(wish);
+  });
+
+  it('subtracts the offer amount when the offer is deleted', async () => {
+    const wish = { id: 1, raised: 25 };
+    const offer = { id: 3, amount: 15, user: { id: 2 }, item: wish };
+    offerRepository.findOne.mockResolvedValue(offer);
+
+    await service.remove(2, 3);
+
+    expect(wish.raised).toBe(10);
+    expect(wishRepository.save).toHaveBeenCalledWith(wish);
+    expect(offerRepository.remove).toHaveBeenCalledWith(offer);
   });
 });

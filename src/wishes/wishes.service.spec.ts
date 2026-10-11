@@ -9,19 +9,38 @@ describe('WishesService', () => {
   let service: WishesService;
   let wishRepository: {
     findOne: ReturnType<typeof jest.fn>;
+    findOneBy: ReturnType<typeof jest.fn>;
     remove: ReturnType<typeof jest.fn>;
     save: ReturnType<typeof jest.fn>;
+    create: ReturnType<typeof jest.fn>;
+    manager?: unknown;
   };
+  let userRepository: { findOneBy: ReturnType<typeof jest.fn> };
 
   beforeEach(() => {
     wishRepository = {
       findOne: jest.fn(),
+      findOneBy: jest.fn(),
       remove: jest.fn(),
       save: jest.fn(),
+      create: jest.fn((data: unknown) => data),
     };
+    userRepository = { findOneBy: jest.fn() };
+
+    const transactionManager = {
+      getRepository: (entity: typeof Wish | typeof User) =>
+        entity === Wish ? wishRepository : userRepository,
+    };
+    wishRepository.manager = {
+      ...transactionManager,
+      transaction: async <T>(
+        callback: (manager: typeof transactionManager) => Promise<T>,
+      ) => callback(transactionManager),
+    };
+
     service = new WishesService(
       wishRepository as unknown as Repository<Wish>,
-      {} as Repository<User>,
+      userRepository as unknown as Repository<User>,
     );
   });
 
@@ -63,5 +82,25 @@ describe('WishesService', () => {
     await service.remove(1, 1);
 
     expect(wishRepository.remove).toHaveBeenCalledWith(wish);
+  });
+
+  it('increments copied on the original wish when it is copied', async () => {
+    const originalWish = {
+      id: 1,
+      name: 'Книга',
+      link: 'https://example.com',
+      image: 'https://example.com/image.png',
+      price: 100,
+      description: 'Описание',
+      copied: 2,
+    };
+    wishRepository.findOneBy.mockResolvedValue(originalWish);
+    userRepository.findOneBy.mockResolvedValue({ id: 2 });
+    wishRepository.save.mockImplementation((wish: unknown) => wish);
+
+    await service.copy(2, 1);
+
+    expect(originalWish.copied).toBe(3);
+    expect(wishRepository.save).toHaveBeenCalledWith(originalWish);
   });
 });

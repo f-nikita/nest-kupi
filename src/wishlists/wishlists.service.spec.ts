@@ -10,12 +10,18 @@ describe('WishlistsService', () => {
   let service: WishlistsService;
   let wishlistRepository: {
     findOne: ReturnType<typeof jest.fn>;
+    find: ReturnType<typeof jest.fn>;
+    create: ReturnType<typeof jest.fn>;
+    save: ReturnType<typeof jest.fn>;
     remove: ReturnType<typeof jest.fn>;
   };
 
   beforeEach(() => {
     wishlistRepository = {
       findOne: jest.fn(),
+      find: jest.fn(),
+      create: jest.fn((data: unknown) => data),
+      save: jest.fn(),
       remove: jest.fn(),
     };
     service = new WishlistsService(
@@ -49,5 +55,15 @@ describe('WishlistsService', () => {
     });
 
     await expect(service.remove(2, 1)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('returns only wishlists belonging to the current user', async () => {
+    wishlistRepository.find.mockResolvedValue([]);
+
+    await service.findAll(7);
+
+    expect(wishlistRepository.find).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { owner: { id: 7 } } }),
+    );
   });
 });

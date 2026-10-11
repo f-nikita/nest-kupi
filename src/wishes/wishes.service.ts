@@ -116,29 +116,35 @@ export class WishesService {
   }
 
   async copy(userId: number, wishId: number) {
-    const wish = await this.wishRepository.findOneBy({ id: wishId });
+    return this.wishRepository.manager.transaction(async (manager) => {
+      const wishRepository = manager.getRepository(Wish);
+      const userRepository = manager.getRepository(User);
+      const wish = await wishRepository.findOneBy({ id: wishId });
 
-    if (!wish) {
-      throw new NotFoundException(`Подарок с id ${wishId} не найден`);
-    }
+      if (!wish) {
+        throw new NotFoundException(`Подарок с id ${wishId} не найден`);
+      }
 
-    const owner = await this.userRepository.findOneBy({ id: userId });
+      const owner = await userRepository.findOneBy({ id: userId });
 
-    if (!owner) {
-      throw new NotFoundException(`Пользователь с id ${userId} не найден`);
-    }
+      if (!owner) {
+        throw new NotFoundException(`Пользователь с id ${userId} не найден`);
+      }
 
-    const copiedWish = this.wishRepository.create({
-      name: wish.name,
-      link: wish.link,
-      image: wish.image,
-      price: wish.price,
-      raised: 0,
-      description: wish.description,
-      copied: 0,
-      owner,
+      const copiedWish = wishRepository.create({
+        name: wish.name,
+        link: wish.link,
+        image: wish.image,
+        price: wish.price,
+        raised: 0,
+        description: wish.description,
+        copied: 0,
+        owner,
+      });
+
+      wish.copied += 1;
+      await wishRepository.save(wish);
+      return wishRepository.save(copiedWish);
     });
-
-    return this.wishRepository.save(copiedWish);
   }
 }

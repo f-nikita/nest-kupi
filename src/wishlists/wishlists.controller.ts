@@ -37,8 +37,8 @@ export class WishlistsController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  findAll() {
-    return this.wishlistsService.findAll();
+  findAll(@Req() req: AuthenticatedRequest) {
+    return this.wishlistsService.findAll(req.user.userId);
   }
 
   @Get(':id')

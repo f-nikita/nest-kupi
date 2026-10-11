@@ -43,6 +43,7 @@ export class WishlistsService {
 
     const wishlist = this.wishlistRepository.create({
       name: createWishlistDto.name,
+      description: createWishlistDto.description,
       image: createWishlistDto.image,
       owner,
       items,
@@ -59,8 +60,9 @@ export class WishlistsService {
     });
   }
 
-  findAll() {
+  findAll(userId: number) {
     return this.wishlistRepository.find({
+      where: { owner: { id: userId } },
       relations: {
         owner: true,
         items: true,

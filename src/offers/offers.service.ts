@@ -25,33 +25,37 @@ export class OffersService {
   ) {}
 
   async create(userId: number, createOfferDto: CreateOfferDto) {
-    const wish = await this.wishRepository.findOneBy({
-      id: createOfferDto.itemId,
+    return this.offerRepository.manager.transaction(async (manager) => {
+      const wishRepository = manager.getRepository(Wish);
+      const userRepository = manager.getRepository(User);
+      const offerRepository = manager.getRepository(Offer);
+      const wish = await wishRepository.findOneBy({
+        id: createOfferDto.itemId,
+      });
+
+      if (!wish) {
+        throw new NotFoundException(
+          `Подарок с id ${createOfferDto.itemId} не найден`,
+        );
+      }
+
+      const user = await userRepository.findOneBy({ id: userId });
+
+      if (!user) {
+        throw new NotFoundException(`Пользователь с id ${userId} не найден`);
+      }
+
+      const { itemId: _itemId, ...offerData } = createOfferDto;
+      const offer = offerRepository.create({
+        ...offerData,
+        user,
+        item: wish,
+      });
+
+      this.changeRaised(wish, offer.amount);
+      await wishRepository.save(wish);
+      return offerRepository.save(offer);
     });
-
-    if (!wish) {
-      throw new NotFoundException(
-        `Подарок с id ${createOfferDto.itemId} не найден`,
-      );
-    }
-
-    const user = await this.userRepository.findOne({
-      where: {
-        id: userId,
-      },
-    });
-
-    if (!user) {
-      throw new NotFoundException(`Пользователь с id ${userId} не найден`);
-    }
-
-    const offer = this.offerRepository.create({
-      ...createOfferDto,
-      user,
-      item: wish,
-    });
-
-    return this.offerRepository.save(offer);
   }
 
   async findAll(userId: number) {
@@ -94,38 +98,75 @@ export class OffersService {
     id: number,
     updateOfferDto: UpdateOfferDto,
   ) {
-    const offer = await this.findOwnedOffer(currentUserId, id);
+    return this.offerRepository.manager.transaction(async (manager) => {
+      const offerRepository = manager.getRepository(Offer);
+      const wishRepository = manager.getRepository(Wish);
+      const offer = await this.findOwnedOffer(
+        currentUserId,
+        id,
+        offerRepository,
+      );
+      const previousItem = offer.item;
+      const previousAmount = offer.amount;
 
-    if (updateOfferDto.itemId !== undefined) {
-      const item = await this.wishRepository.findOneBy({
-        id: updateOfferDto.itemId,
-      });
+      let nextItem = previousItem;
+      if (updateOfferDto.itemId !== undefined) {
+        const item = await wishRepository.findOneBy({
+          id: updateOfferDto.itemId,
+        });
 
-      if (!item) {
-        throw new NotFoundException(
-          `Подарок с id ${updateOfferDto.itemId} не найден`,
-        );
+        if (!item) {
+          throw new NotFoundException(
+            `Подарок с id ${updateOfferDto.itemId} не найден`,
+          );
+        }
+
+        nextItem = item;
       }
 
-      offer.item = item;
-    }
+      const nextAmount = updateOfferDto.amount ?? previousAmount;
 
-    offer.amount = updateOfferDto.amount ?? offer.amount;
-    offer.hidden = updateOfferDto.hidden ?? offer.hidden;
+      if (previousItem.id === nextItem.id) {
+        this.changeRaised(previousItem, nextAmount - previousAmount);
+        await wishRepository.save(previousItem);
+      } else {
+        this.changeRaised(previousItem, -previousAmount);
+        this.changeRaised(nextItem, nextAmount);
+        await wishRepository.save([previousItem, nextItem]);
+      }
 
-    return this.offerRepository.save(offer);
+      offer.item = nextItem;
+      offer.amount = nextAmount;
+      offer.hidden = updateOfferDto.hidden ?? offer.hidden;
+
+      return offerRepository.save(offer);
+    });
   }
 
   async remove(currentUserId: number, id: number) {
-    const offer = await this.findOwnedOffer(currentUserId, id);
+    await this.offerRepository.manager.transaction(async (manager) => {
+      const offerRepository = manager.getRepository(Offer);
+      const wishRepository = manager.getRepository(Wish);
+      const offer = await this.findOwnedOffer(
+        currentUserId,
+        id,
+        offerRepository,
+      );
 
-    await this.offerRepository.remove(offer);
+      this.changeRaised(offer.item, -offer.amount);
+      await wishRepository.save(offer.item);
+      await offerRepository.remove(offer);
+    });
   }
 
-  private async findOwnedOffer(currentUserId: number, offerId: number) {
-    const offer = await this.offerRepository.findOne({
+  private async findOwnedOffer(
+    currentUserId: number,
+    offerId: number,
+    offerRepository: Repository<Offer> = this.offerRepository,
+  ) {
+    const offer = await offerRepository.findOne({
       where: { id: offerId },
-      relations: { user: true },
+      relations: { user: true, item: true },
     });
 
     if (!offer) {
@@ -137,5 +178,12 @@ export class OffersService {
     }
 
     return offer;
+  }
+
+  private changeRaised(wish: Wish, amountDifference: number) {
+    const raisedInCents = Math.round(Number(wish.raised) * 100);
+    const differenceInCents = Math.round(Number(amountDifference) * 100);
+
+    wish.raised = (raisedInCents + differenceInCents) / 100;
   }
 }
