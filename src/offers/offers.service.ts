@@ -75,14 +75,7 @@ export class OffersService {
       where: { id },
       relations: {
         item: true,
-        user: {
-          wishes: true,
-          offers: true,
-          wishlists: {
-            owner: true,
-            items: true,
-          },
-        },
+        user: true,
       },
     });
 

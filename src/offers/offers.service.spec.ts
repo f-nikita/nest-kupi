@@ -105,4 +105,15 @@ describe('OffersService', () => {
     expect(wishRepository.save).toHaveBeenCalledWith(wish);
     expect(offerRepository.remove).toHaveBeenCalledWith(offer);
   });
+
+  it('loads only the offer user and item for offer details', async () => {
+    offerRepository.findOne.mockResolvedValue({ id: 1 });
+
+    await service.findOne(1);
+
+    expect(offerRepository.findOne).toHaveBeenCalledWith({
+      where: { id: 1 },
+      relations: { item: true, user: true },
+    });
+  });
 });
