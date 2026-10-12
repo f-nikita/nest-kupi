@@ -9,6 +9,8 @@ import {
 } from 'nest-winston';
 import * as winston from 'winston';
 
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -66,6 +68,12 @@ import { WishlistsModule } from './wishlists/wishlists.module';
         }),
       ],
     }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 10,
+      },
+    ]),
     UsersModule,
     WishesModule,
     WishlistsModule,
@@ -73,6 +81,10 @@ import { WishlistsModule } from './wishlists/wishlists.module';
     AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService, HttpExceptionFilter],
+  providers: [
+    AppService,
+    HttpExceptionFilter,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}
