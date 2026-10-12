@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   ParseIntPipe,
   Patch,
@@ -49,11 +50,13 @@ export class WishesController {
   }
 
   @Get()
+  @Header('Cache-Control', 'public, max-age=30, must-revalidate')
   findAll() {
     return this.wishesService.findAll();
   }
 
   @Get(':id')
+  @Header('Cache-Control', 'public, max-age=30, must-revalidate')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.wishesService.findOne(id);
   }

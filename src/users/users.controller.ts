@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   ParseIntPipe,
   Patch,
@@ -34,12 +35,14 @@ export class UsersController {
   }
 
   @Get()
+  @Header('Cache-Control', 'public, max-age=30, must-revalidate')
   findAll() {
     return this.usersService.findAll();
   }
 
   @Get('/me')
   @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'private, max-age=30, must-revalidate')
   findMe(@Req() req: AuthenticatedRequest) {
     return this.usersService.findOne(req.user.userId);
   }
@@ -59,18 +62,21 @@ export class UsersController {
 
   @Get('/me/wishes')
   @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'private, max-age=30, must-revalidate')
   findMyWishes(@Req() req: AuthenticatedRequest) {
     return this.usersService.findMyWishes(req.user.userId);
   }
 
   @Get(':username')
   @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'private, max-age=30, must-revalidate')
   findSomeUser(@Param('username') username: string) {
     return this.usersService.findOneByUsername(username);
   }
 
   @Get(':username/wishes')
   @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'private, max-age=30, must-revalidate')
   findOneWishesByUsername(@Param('username') username: string) {
     return this.usersService.findOneWishesByUsername(username);
   }

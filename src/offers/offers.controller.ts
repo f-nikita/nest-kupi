@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   ParseIntPipe,
   Patch,
@@ -37,11 +38,13 @@ export class OffersController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'private, max-age=30, must-revalidate')
   findAll(@Req() req: AuthenticatedRequest) {
     return this.offersService.findAll(req.user.userId);
   }
 
   @Get(':id')
+  @Header('Cache-Control', 'public, max-age=30, must-revalidate')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.offersService.findOne(id);
   }
