@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import type { Cache } from 'cache-manager';
 import type { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { Wish } from './entities/wish.entity';
@@ -16,6 +17,11 @@ describe('WishesService', () => {
     manager?: unknown;
   };
   let userRepository: { findOneBy: ReturnType<typeof jest.fn> };
+  let cacheManager: {
+    get: ReturnType<typeof jest.fn>;
+    set: ReturnType<typeof jest.fn>;
+    del: ReturnType<typeof jest.fn>;
+  };
 
   beforeEach(() => {
     wishRepository = {
@@ -26,6 +32,7 @@ describe('WishesService', () => {
       create: jest.fn((data: unknown) => data),
     };
     userRepository = { findOneBy: jest.fn() };
+    cacheManager = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
 
     const transactionManager = {
       getRepository: (entity: typeof Wish | typeof User) =>
@@ -41,6 +48,7 @@ describe('WishesService', () => {
     service = new WishesService(
       wishRepository as unknown as Repository<Wish>,
       userRepository as unknown as Repository<User>,
+      cacheManager as unknown as Cache,
     );
   });
 
@@ -102,5 +110,15 @@ describe('WishesService', () => {
 
     expect(originalWish.copied).toBe(3);
     expect(wishRepository.save).toHaveBeenCalledWith(originalWish);
+  });
+
+  it('returns cached wishes without querying the database', async () => {
+    const cachedWishes = [{ id: 1, name: 'Книга' }];
+    cacheManager.get.mockResolvedValue(cachedWishes);
+
+    await expect(service.findAll()).resolves.toEqual(cachedWishes);
+
+    expect(wishRepository.findOne).not.toHaveBeenCalled();
+    expect(cacheManager.set).not.toHaveBeenCalled();
   });
 });

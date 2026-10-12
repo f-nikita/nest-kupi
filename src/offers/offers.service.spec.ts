@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import type { Cache } from 'cache-manager';
 import type { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { Wish } from '../wishes/entities/wish.entity';
@@ -11,11 +12,17 @@ describe('OffersService', () => {
   let wishRepository: Record<string, ReturnType<typeof jest.fn>>;
   let userRepository: Record<string, ReturnType<typeof jest.fn>>;
   let offerRepository: {
+    find: ReturnType<typeof jest.fn>;
     findOne: ReturnType<typeof jest.fn>;
     remove: ReturnType<typeof jest.fn>;
     create: ReturnType<typeof jest.fn>;
     save: ReturnType<typeof jest.fn>;
     manager?: unknown;
+  };
+  let cacheManager: {
+    get: ReturnType<typeof jest.fn>;
+    set: ReturnType<typeof jest.fn>;
+    del: ReturnType<typeof jest.fn>;
   };
 
   beforeEach(() => {
@@ -27,11 +34,13 @@ describe('OffersService', () => {
       findOneBy: jest.fn(),
     };
     offerRepository = {
+      find: jest.fn(),
       findOne: jest.fn(),
       remove: jest.fn(),
       create: jest.fn((data: unknown) => data),
       save: jest.fn(),
     };
+    cacheManager = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
 
     const transactionManager = {
       getRepository: (entity: typeof Wish | typeof User | typeof Offer) => {
@@ -48,9 +57,8 @@ describe('OffersService', () => {
     };
 
     service = new OffersService(
-      wishRepository as unknown as Repository<Wish>,
-      userRepository as unknown as Repository<User>,
       offerRepository as unknown as Repository<Offer>,
+      cacheManager as unknown as Cache,
     );
   });
 
@@ -115,5 +123,23 @@ describe('OffersService', () => {
       where: { id: 1 },
       relations: { item: true, user: true },
     });
+  });
+
+  it('returns cached offers for the current user without querying the database', async () => {
+    const cachedOffers = [{ id: 1 }];
+    cacheManager.get.mockResolvedValue(cachedOffers);
+
+    await expect(service.findAll(2)).resolves.toEqual(cachedOffers);
+
+    expect(offerRepository.find).not.toHaveBeenCalled();
+  });
+
+  it('stores an offer in cache after loading its details', async () => {
+    const offer = { id: 1, user: { id: 2 }, item: { id: 3 } };
+    offerRepository.findOne.mockResolvedValue(offer);
+
+    await service.findOne(1);
+
+    expect(cacheManager.set).toHaveBeenCalledWith('offer:1', offer);
   });
 });

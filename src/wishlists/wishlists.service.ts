@@ -1,9 +1,16 @@
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import type { Cache } from 'cache-manager';
+import {
+  getUserWishlistsCacheKey,
+  getWishlistCacheKey,
+} from 'src/cache/cache.constants';
 import { User } from 'src/users/entities/user.entity';
 import { Wish } from 'src/wishes/entities/wish.entity';
 import { In, Repository } from 'typeorm';
@@ -22,6 +29,9 @@ export class WishlistsService {
 
     @InjectRepository(Wishlist)
     private readonly wishlistRepository: Repository<Wishlist>,
+
+    @Inject(CACHE_MANAGER)
+    private readonly cacheManager: Cache,
   ) {}
 
   async create(userId: number, createWishlistDto: CreateWishlistDto) {
@@ -51,6 +61,8 @@ export class WishlistsService {
 
     const savedWishlist = await this.wishlistRepository.save(wishlist);
 
+    await this.invalidateWishlistCache(userId, savedWishlist.id);
+
     return this.wishlistRepository.find({
       where: { id: savedWishlist.id, owner: { id: userId } },
       relations: {
@@ -60,17 +72,34 @@ export class WishlistsService {
     });
   }
 
-  findAll(userId: number) {
-    return this.wishlistRepository.find({
+  async findAll(userId: number) {
+    const cacheKey = getUserWishlistsCacheKey(userId);
+    const cachedWishlists = await this.cacheManager.get<Wishlist[]>(cacheKey);
+
+    if (cachedWishlists) {
+      return cachedWishlists;
+    }
+
+    const wishlists = await this.wishlistRepository.find({
       where: { owner: { id: userId } },
       relations: {
         owner: true,
         items: true,
       },
     });
+
+    await this.cacheManager.set(cacheKey, wishlists);
+    return wishlists;
   }
 
   async findOne(wishlistId: number) {
+    const cacheKey = getWishlistCacheKey(wishlistId);
+    const cachedWishlist = await this.cacheManager.get<Wishlist>(cacheKey);
+
+    if (cachedWishlist) {
+      return cachedWishlist;
+    }
+
     const wishlist = await this.wishlistRepository.findOne({
       where: { id: wishlistId },
       relations: {
@@ -83,6 +112,7 @@ export class WishlistsService {
       throw new NotFoundException(`Wishlist с id ${wishlistId} не найден`);
     }
 
+    await this.cacheManager.set(cacheKey, wishlist);
     return wishlist;
   }
 
@@ -111,6 +141,7 @@ export class WishlistsService {
     wishlist.image = updateWishlistDto.image ?? wishlist.image;
 
     await this.wishlistRepository.save(wishlist);
+    await this.invalidateWishlistCache(currentUserId, id);
 
     return this.findOne(id);
   }
@@ -119,6 +150,7 @@ export class WishlistsService {
     const wishlist = await this.findOwnedWishlist(currentUserId, id);
 
     await this.wishlistRepository.remove(wishlist);
+    await this.invalidateWishlistCache(currentUserId, id);
   }
 
   private async findOwnedWishlist(currentUserId: number, wishlistId: number) {
@@ -136,5 +168,10 @@ export class WishlistsService {
     }
 
     return wishlist;
+  }
+
+  private async invalidateWishlistCache(userId: number, wishlistId: number) {
+    await this.cacheManager.del(getUserWishlistsCacheKey(userId));
+    await this.cacheManager.del(getWishlistCacheKey(wishlistId));
   }
 }

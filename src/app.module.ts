@@ -1,3 +1,5 @@
+import { createKeyv } from '@keyv/redis';
+import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -10,6 +12,7 @@ import * as winston from 'winston';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { Offer } from './offers/entities/offer.entity';
 import { OffersModule } from './offers/offers.module';
 import { User } from './users/entities/user.entity';
@@ -22,6 +25,14 @@ import { WishlistsModule } from './wishlists/wishlists.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    CacheModule.registerAsync({
+      isGlobal: true,
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        stores: [createKeyv(configService.getOrThrow<string>('REDIS_URL'))],
+        ttl: 30_000,
+      }),
+    }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
@@ -62,6 +73,6 @@ import { WishlistsModule } from './wishlists/wishlists.module';
     AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, HttpExceptionFilter],
 })
 export class AppModule {}

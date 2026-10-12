@@ -25,6 +25,8 @@
     "migration:revert": "npm run typeorm -- migration:revert -d src/database/data-source.ts"
   },
   "dependencies": {
+    "@keyv/redis": "^5.1.6",
+    "@nestjs/cache-manager": "^12.0.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^12.0.1",
     "@nestjs/core": "^11.0.1",
@@ -34,8 +36,10 @@
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/typeorm": "^12.0.2",
     "bcrypt": "^6.0.0",
+    "cache-manager": "^7.2.9",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "keyv": "^5.6.0",
     "nest-winston": "^2.0.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
@@ -91,6 +95,7 @@
     "moduleNameMapper": {
       "^src/auth/strategies/jwt-auth.guard$": "<rootDir>/test/mocks/jwt-auth.guard.ts",
       "^@nestjs/mapped-types$": "<rootDir>/test/mocks/nestjs-mapped-types.ts",
+      "^@nestjs/cache-manager$": "<rootDir>/test/mocks/nestjs-cache-manager.ts",
       "^src/(.*)$": "<rootDir>/$1",
       "^@nestjs/typeorm$": "<rootDir>/test/mocks/nestjs-typeorm.ts"
     }

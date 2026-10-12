@@ -1,9 +1,13 @@
 import {
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectRepository } from '@nestjs/typeorm';
+import type { Cache } from 'cache-manager';
+import { getWishCacheKey, WISHES_CACHE_KEY } from 'src/cache/cache.constants';
 import { User } from 'src/users/entities/user.entity';
 import { Repository } from 'typeorm';
 import { CreateWishDto } from './dto/create-wish.dto';
@@ -18,6 +22,9 @@ export class WishesService {
 
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+
+    @Inject(CACHE_MANAGER)
+    private readonly cacheManager: Cache,
   ) {}
 
   async create(userId: number, createWishDto: CreateWishDto) {
@@ -36,9 +43,10 @@ export class WishesService {
       owner,
     });
 
-    await this.wishRepository.save(wish);
+    const savedWish = await this.wishRepository.save(wish);
+    await this.invalidateWishCache();
 
-    return;
+    return savedWish;
   }
 
   findLastWish(userId: number) {
@@ -67,17 +75,34 @@ export class WishesService {
     });
   }
 
-  findAll() {
-    return this.wishRepository.find({});
+  async findAll() {
+    const cachedWishes = await this.cacheManager.get<Wish[]>(WISHES_CACHE_KEY);
+
+    if (cachedWishes) {
+      return cachedWishes;
+    }
+
+    const wishes = await this.wishRepository.find({});
+    await this.cacheManager.set(WISHES_CACHE_KEY, wishes);
+
+    return wishes;
   }
 
   async findOne(id: number) {
+    const cacheKey = getWishCacheKey(id);
+    const cachedWish = await this.cacheManager.get<Wish>(cacheKey);
+
+    if (cachedWish) {
+      return cachedWish;
+    }
+
     const wish = await this.wishRepository.findOneBy({ id });
 
     if (!wish) {
       throw new NotFoundException(`Подарок с id ${id} не найден`);
     }
 
+    await this.cacheManager.set(cacheKey, wish);
     return wish;
   }
 
@@ -89,13 +114,17 @@ export class WishesService {
     const wish = await this.findOwnedWish(currentUserId, id);
 
     Object.assign(wish, updateWishDto);
-    return this.wishRepository.save(wish);
+    const savedWish = await this.wishRepository.save(wish);
+    await this.invalidateWishCache(id);
+
+    return savedWish;
   }
 
   async remove(currentUserId: number, id: number) {
     const wish = await this.findOwnedWish(currentUserId, id);
 
     await this.wishRepository.remove(wish);
+    await this.invalidateWishCache(id);
   }
 
   private async findOwnedWish(currentUserId: number, wishId: number) {
@@ -116,35 +145,48 @@ export class WishesService {
   }
 
   async copy(userId: number, wishId: number) {
-    return this.wishRepository.manager.transaction(async (manager) => {
-      const wishRepository = manager.getRepository(Wish);
-      const userRepository = manager.getRepository(User);
-      const wish = await wishRepository.findOneBy({ id: wishId });
+    const copiedWish = await this.wishRepository.manager.transaction(
+      async (manager) => {
+        const wishRepository = manager.getRepository(Wish);
+        const userRepository = manager.getRepository(User);
+        const wish = await wishRepository.findOneBy({ id: wishId });
 
-      if (!wish) {
-        throw new NotFoundException(`Подарок с id ${wishId} не найден`);
-      }
+        if (!wish) {
+          throw new NotFoundException(`Подарок с id ${wishId} не найден`);
+        }
 
-      const owner = await userRepository.findOneBy({ id: userId });
+        const owner = await userRepository.findOneBy({ id: userId });
 
-      if (!owner) {
-        throw new NotFoundException(`Пользователь с id ${userId} не найден`);
-      }
+        if (!owner) {
+          throw new NotFoundException(`Пользователь с id ${userId} не найден`);
+        }
 
-      const copiedWish = wishRepository.create({
-        name: wish.name,
-        link: wish.link,
-        image: wish.image,
-        price: wish.price,
-        raised: 0,
-        description: wish.description,
-        copied: 0,
-        owner,
-      });
+        const copiedWish = wishRepository.create({
+          name: wish.name,
+          link: wish.link,
+          image: wish.image,
+          price: wish.price,
+          raised: 0,
+          description: wish.description,
+          copied: 0,
+          owner,
+        });
 
-      wish.copied += 1;
-      await wishRepository.save(wish);
-      return wishRepository.save(copiedWish);
-    });
+        wish.copied += 1;
+        await wishRepository.save(wish);
+        return wishRepository.save(copiedWish);
+      },
+    );
+
+    await this.invalidateWishCache(wishId);
+    return copiedWish;
+  }
+
+  private async invalidateWishCache(id?: number) {
+    await this.cacheManager.del(WISHES_CACHE_KEY);
+
+    if (id !== undefined) {
+      await this.cacheManager.del(getWishCacheKey(id));
+    }
   }
 }

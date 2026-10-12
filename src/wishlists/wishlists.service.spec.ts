@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import type { Cache } from 'cache-manager';
 import type { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { Wish } from '../wishes/entities/wish.entity';
@@ -15,6 +16,11 @@ describe('WishlistsService', () => {
     save: ReturnType<typeof jest.fn>;
     remove: ReturnType<typeof jest.fn>;
   };
+  let cacheManager: {
+    get: ReturnType<typeof jest.fn>;
+    set: ReturnType<typeof jest.fn>;
+    del: ReturnType<typeof jest.fn>;
+  };
 
   beforeEach(() => {
     wishlistRepository = {
@@ -24,10 +30,12 @@ describe('WishlistsService', () => {
       save: jest.fn(),
       remove: jest.fn(),
     };
+    cacheManager = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
     service = new WishlistsService(
       {} as Repository<Wish>,
       {} as Repository<User>,
       wishlistRepository as unknown as Repository<Wishlist>,
+      cacheManager as unknown as Cache,
     );
   });
 
@@ -65,5 +73,23 @@ describe('WishlistsService', () => {
     expect(wishlistRepository.find).toHaveBeenCalledWith(
       expect.objectContaining({ where: { owner: { id: 7 } } }),
     );
+  });
+
+  it('returns cached wishlists for the current user without querying the database', async () => {
+    const cachedWishlists = [{ id: 1 }];
+    cacheManager.get.mockResolvedValue(cachedWishlists);
+
+    await expect(service.findAll(7)).resolves.toEqual(cachedWishlists);
+
+    expect(wishlistRepository.find).not.toHaveBeenCalled();
+  });
+
+  it('stores a wishlist in cache after loading its details', async () => {
+    const wishlist = { id: 1, owner: { id: 2 }, items: [] };
+    wishlistRepository.findOne.mockResolvedValue(wishlist);
+
+    await service.findOne(1);
+
+    expect(cacheManager.set).toHaveBeenCalledWith('wishlist:1', wishlist);
   });
 });
